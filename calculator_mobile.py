@@ -1,7 +1,51 @@
 from kivy.app import App
+from kivy.core.window import Window
+from kivy.graphics import Color, RoundedRectangle
+from kivy.metrics import dp
+from kivy.properties import ListProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
+
+
+# Desktop testing size only
+from kivy.utils import platform
+
+if platform == "win":
+    Window.size = (400, 750)
+
+
+class CalculatorButton(Button):
+    button_color = ListProperty([0.15, 0.15, 0.18, 1])
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.background_normal = ""
+        self.background_down = ""
+        self.background_color = (0, 0, 0, 0)
+        self.color = (1, 1, 1, 1)
+        self.font_size = dp(24)
+
+        with self.canvas.before:
+            self.bg_color = Color(*self.button_color)
+            self.bg = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(14)]
+            )
+
+        self.bind(pos=self.update_background)
+        self.bind(size=self.update_background)
+        self.bind(button_color=self.update_color)
+
+    def update_background(self, *args):
+        self.bg.pos = self.pos
+        self.bg.size = self.size
+
+    def update_color(self, *args):
+        self.bg_color.rgb = self.button_color[:3]
+        self.bg_color.a = self.button_color[3]
 
 
 class CalculatorApp(App):
@@ -11,54 +55,97 @@ class CalculatorApp(App):
 
         main_layout = BoxLayout(
             orientation="vertical",
-            padding=10,
-            spacing=5
+            padding=dp(12),
+            spacing=dp(8)
         )
 
-        # Display
-        self.display = Label(
-             text="0",
-             font_size=40,
+        # -------------------------
+        # DISPLAY
+        # -------------------------
+
+        display_box = BoxLayout(
+             orientation="vertical",
              size_hint_y=None,
-             height=100,
+             height=dp(105),
+             padding=[dp(10), dp(2)]
+        )
+
+        title = Label(
+             text="PROJECT ALPHA",
+             font_size=dp(14),
+             color=(0.65, 0.65, 0.70, 1),
+             size_hint_y=None,
+             height=dp(25),
              halign="right",
              valign="middle"
         )
-        self.display.bind(
+
+        title.bind(
              size=lambda instance, value:
              setattr(instance, "text_size", value)
         )
-        self.display.bind(
-             text=lambda instance, value:
-             setattr(
-                  instance,
-                  "font_size",
-                  max(22, min(40, 500 / max(len(value), 1)))
-            )
+
+        display_box.add_widget(title)
+
+        self.display = Label(
+            text="0",
+            font_size=dp(42),
+            color=(1, 1, 1, 1),
+            halign="right",
+            valign="middle"
         )
 
-        main_layout.add_widget(self.display)
+        self.display.bind(
+            size=lambda instance, value:
+            setattr(instance, "text_size", value)
+        )
 
-        # Calculator buttons
+        self.display.bind(
+            text=self.adjust_font_size
+        )
+
+        display_box.add_widget(self.display)
+        main_layout.add_widget(display_box)
+
+        # -------------------------
+        # BUTTON ROWS
+        # -------------------------
+
         buttons = [
-            ["C", "DEL", "±", "%"],
-            ["7", "8", "9", "÷"],
-            ["4", "5", "6", "×"],
-            ["1", "2", "3", "−"],
-            ["x²", "0", ".", "+"],
-            ["√", "="]
+            [("C", [0.75, 0.20, 0.20, 1]),
+             ("DEL", [0.35, 0.35, 0.40, 1]),
+             ("±", [0.35, 0.35, 0.40, 1]),
+             ("%", [0.35, 0.35, 0.40, 1])],
+
+            [("7", None), ("8", None), ("9", None),
+             ("÷", [0.95, 0.55, 0.15, 1])],
+
+            [("4", None), ("5", None), ("6", None),
+             ("×", [0.95, 0.55, 0.15, 1])],
+
+            [("1", None), ("2", None), ("3", None),
+             ("−", [0.95, 0.55, 0.15, 1])],
+
+            [("x²", [0.25, 0.30, 0.45, 1]),
+             ("0", None),
+             (".", None),
+             ("+", [0.95, 0.55, 0.15, 1])]
         ]
 
         for row in buttons:
             row_layout = BoxLayout(
                 orientation="horizontal",
-                spacing=5
+                spacing=dp(7)
             )
 
-            for button_text in row:
-                button = Button(
-                    text=button_text,
-                    font_size=25
+            for text, color in row:
+
+                if color is None:
+                    color = [0.15, 0.15, 0.18, 1]
+
+                button = CalculatorButton(
+                    text=text,
+                    button_color=color
                 )
 
                 button.bind(
@@ -69,7 +156,55 @@ class CalculatorApp(App):
 
             main_layout.add_widget(row_layout)
 
+        # -------------------------
+        # BOTTOM ROW
+        # -------------------------
+
+        bottom_row = BoxLayout(
+            orientation="horizontal",
+            spacing=dp(7)
+        )
+
+        sqrt_button = CalculatorButton(
+            text="√",
+            button_color=[0.25, 0.30, 0.45, 1]
+        )
+
+        equal_button = CalculatorButton(
+            text="=",
+            button_color=[0.95, 0.55, 0.15, 1]
+        )
+
+        sqrt_button.bind(
+            on_press=self.button_pressed
+        )
+
+        equal_button.bind(
+            on_press=self.button_pressed
+        )
+
+        bottom_row.add_widget(sqrt_button)
+        bottom_row.add_widget(equal_button)
+
+        main_layout.add_widget(bottom_row)
+
         return main_layout
+
+    # -------------------------
+    # DISPLAY FONT
+    # -------------------------
+
+    def adjust_font_size(self, instance, value):
+        length = len(value)
+
+        if length <= 10:
+            instance.font_size = dp(42)
+        elif length <= 14:
+            instance.font_size = dp(34)
+        elif length <= 18:
+            instance.font_size = dp(28)
+        else:
+            instance.font_size = dp(23)
 
     # -------------------------
     # BUTTON HANDLER
@@ -154,12 +289,12 @@ class CalculatorApp(App):
         if current == "Error":
             return
 
-        self.new_calculation = False
-
         if current[-1:] in ["+", "−", "×", "÷"]:
             self.display.text = current[:-1] + operator
         else:
             self.display.text += operator
+
+        self.new_calculation = False
 
     # -------------------------
     # CALCULATE
@@ -176,7 +311,6 @@ class CalculatorApp(App):
             self.new_calculation = True
             return
 
-        # Percentage
         if expression.endswith("%"):
             expression = expression[:-1]
 
@@ -211,7 +345,6 @@ class CalculatorApp(App):
 
         try:
             result = eval(expression)
-
             self.show_result(result)
 
         except:
@@ -226,11 +359,8 @@ class CalculatorApp(App):
     def square(self):
         try:
             number = float(self.display.text)
-
             result = number ** 2
-
             self.show_result(result)
-
             self.new_calculation = True
 
         except:
@@ -251,9 +381,7 @@ class CalculatorApp(App):
                 return
 
             result = number ** 0.5
-
             self.show_result(result)
-
             self.new_calculation = True
 
         except:
@@ -267,16 +395,14 @@ class CalculatorApp(App):
     def toggle_sign(self):
         try:
             number = float(self.display.text)
-
             number = -number
-
             self.show_result(number)
 
         except:
             self.display.text = "Error"
 
     # -------------------------
-    # PERCENTAGE BUTTON
+    # PERCENTAGE
     # -------------------------
 
     def percentage(self):
@@ -307,7 +433,7 @@ class CalculatorApp(App):
         self.new_calculation = False
 
     # -------------------------
-    # FORMAT RESULT
+    # RESULT FORMAT
     # -------------------------
 
     def show_result(self, result):
